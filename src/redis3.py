@@ -1,5 +1,6 @@
 import boto3
 import botocore
+from time import time
 
 
 class redis3Client():
@@ -22,6 +23,7 @@ class redis3Client():
         You can also override the default bucket prefix by passing a different
         bucket_prefix as kwarg.
         """
+        init_start_time = time()
         # override the default bucket prefix if needed
         if 'bucket_prefix' in kwargs and kwargs['bucket_prefix'] is not None:
             self.BUCKET_PREFIX = kwargs['bucket_prefix']
@@ -57,6 +59,9 @@ class redis3Client():
                     print("Bucket {} already exists. Using it as cache".format(self.bucket_name))
             else:
                 raise e    
+            
+        if self._verbose:
+            print("Init completed in {:.4f}s".format(time() - init_start_time))
             
         return None
     

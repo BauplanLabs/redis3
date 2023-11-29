@@ -42,7 +42,7 @@ def run_playground(
     print("Started playground at {}\n".format(datetime.now()))
     
     # first, instantiate redis3Client and check all is well
-    my_client = redis3Client(cache_name=cache_name, db=0)
+    my_client = redis3Client(cache_name=cache_name, db=0, verbose=True)
     # for debugging purposes, print the name of the bucket used to back the cache
     print("Using bucket {} as cache".format(my_client.bucket_name))
     
