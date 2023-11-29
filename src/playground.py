@@ -50,11 +50,13 @@ def run_playground(
     
     # set a key and get it back
     r = my_client.set('foo', 'bar')
-    print(r) # should be True
+    print(r)
+    assert r is True, "Expected True, got {}".format(r)
     r = my_client.get('foo')
-    print(r) # should be 'bar
+    print(r) 
+    assert r == 'bar', "Expected 'bar', got {}".format(r)
+    assert isinstance(r, str), "Expected a string, got {}".format(type(r))
     # set a list of keys and get them back
-
     
     # finally, do the same ops, wrapped in a timing decorator now
     set_key_with_timing(my_client)
