@@ -2,7 +2,7 @@ service: redis3-lambda-performance
 
 provider:
   name: aws
-  timeout: 60
+  timeout: 30
   architecture: arm64
   ecr:
     images:

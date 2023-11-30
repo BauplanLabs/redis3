@@ -40,6 +40,9 @@ class redis3Client():
         self._availability_zone = availability_zone
         self._verbose = verbose
         try:
+            if verbose:
+                print("Trying to create bucket {} in AZ {}".format(self.bucket_name, self._availability_zone))
+            
             r = self._s3_client.create_bucket(
                 Bucket=self.bucket_name,
                 CreateBucketConfiguration={

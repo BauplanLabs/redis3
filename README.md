@@ -31,7 +31,7 @@ or run `playground.py` with your own `my-cache-name` as argument to see a variet
 python playground.py my-cache-name
 ```
 
-Note that `my-cache-name` will be used to produce a bucket name with the name `redis3-my-cache-name`, which needs to be unique in the region as per S3 naming rules.
+Note that `my-cache-name` will be used (together with an availability zone) to produce a bucket name with a name like `redis3-mytestcache--use1-az5--x-s3`, which needs to be unique in the region as per S3 naming rules.
 
 ## 5-min explanation
 
@@ -43,7 +43,35 @@ WIP
 
 ### Bonus: a lambda-based use-case
 
-WIP
+
+`https://xxx.execute-api.us-east-1.amazonaws.com/dev/test`
+
+Without custom parameters, it will generate something like this, i.e. a comparison of K SETs and GETs in S3 express vs normal s3.
+
+```json
+{
+    "metadata": {
+        "timeMs": 7373,
+        "epochMs": 1701377819320,
+        "eventId": "971ca40d-8f50-4c27-a816-76bb7df292c4",
+        "inputK": 75
+    },
+    "data": {
+        "set_times": [],
+        "set_time_mean": 0.011164916356404623,
+        "set_time_median": 0.009434223175048828,
+        "get_times": [],
+        "get_time_mean": 0.006322011947631836,
+        "get_time_median": 0.006218910217285156,
+        "set_times_s3": [],
+        "set_time_mean_s3": 0.026339941024780274,
+        "set_time_median_s3": 0.024151086807250977,
+        "get_times_s3": [],
+        "get_time_mean_s3": 0.019532273610432943,
+        "get_time_median_s3": 0.016076326370239258
+    }
+}
+```
 
 ## TO-DOs, misc. notes and all that jazz
 

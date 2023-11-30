@@ -65,8 +65,6 @@ def run_normal_bucket_tests(
     
     # delete the bucket
     s3_client.delete_bucket(Bucket=bucket_name)
-
-    del s3_client
     
     print("\nEnd of testing standard buckets at {}\n".format(datetime.now()))
     
@@ -98,8 +96,7 @@ def run_cache_tests(
         assert v == test_values[i], "Expected {}, got {}".format(test_values[i], v)
     # print out average and median set times
     print_test_info(get_times, target_percentile=95)
-    
-    del my_client
+
     # end
     print("\nEnd of testing the cache at {}\n".format(datetime.now()))
     
