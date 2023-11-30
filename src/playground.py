@@ -24,15 +24,15 @@ def get_key_with_timing(client):
 
 
 @measure_func
-def set_keys_with_timing():
-    
-    return
+def set_keys_with_timing(client, size=50):
+    _list = ['playground_{}'.format(i) for i in range(size)]
+    return client.mset(_list, _list)
 
 
 @measure_func
-def get_keys_with_timing():
-    
-    return 
+def get_keys_with_timing(client, size=50):
+    key_list = ['playground_{}'.format(i) for i in range(size)]
+    return client.mget(key_list)
 
 
 def run_playground(
@@ -42,6 +42,8 @@ def run_playground(
     print("Started playground at {}\n".format(datetime.now()))
     
     # first, instantiate redis3Client and check all is well
+    # we set verbose to True to see what's going on under the hood as this
+    # a playground script
     my_client = redis3Client(cache_name=cache_name, db=0, verbose=True)
     # for debugging purposes, print the name of the bucket used to back the cache
     print("Using bucket {} as cache".format(my_client.bucket_name))
@@ -56,11 +58,34 @@ def run_playground(
     print(r) 
     assert r == 'bar', "Expected 'bar', got {}".format(r)
     assert isinstance(r, str), "Expected a string, got {}".format(type(r))
-    # set a list of keys and get them back
+    # overwrite the key and get it back
+    r = my_client.set('foo', 'bar2')
+    assert my_client.get('foo') == 'bar2', "Expected 'bar2', got {}".format(r)
+    # get a key that doesn't exist
+    r = my_client.get('baz')
+    assert r is None, "Expected None, got {}".format(r)
+    # set a list of keys and get them back in one go
+    key_list = ['playground_{}'.format(i) for i in range(5)]
+    val_list = ['bar_{}'.format(i) for i in range(5)]
+    r = my_client.mset(key_list, val_list)
+    assert all(r), "Expected all True, got {}".format(r)
+    val_list_back = my_client.mget(key_list)    
+    assert val_list_back == val_list, "Expected {}, got {}".format(val_list, val_list_back)
     
-    # finally, do the same ops, wrapped in a timing decorator now
-    set_key_with_timing(my_client)
-    get_key_with_timing(my_client)
+    # finally, do the same ops, wrapped in a timing decorator
+    # to avoid spamming the console, we 'manually' toggle verbose off
+    my_client._verbose = False
+    
+    r = set_key_with_timing(my_client)
+    r = get_key_with_timing(my_client)
+    r = get_keys_with_timing(my_client)
+    r = set_keys_with_timing(my_client)
+    
+    # how does the many ops scale with more keys?
+    for i in [25, 50, 100, 500, 1000]:
+        print("\nRunning ops with {} keys".format(i))
+        r = set_keys_with_timing(my_client, size=i)
+        r = get_keys_with_timing(my_client, size=i)
     
     # say bye
     print("\nFinished playground at {}. See you, s3ace cowboy".format(datetime.now()))
