@@ -62,11 +62,13 @@ Some more (horribly repetive) code to test the difference between s3 express and
 python run_tests.py my-cache-name
 ```
 
-Don't take these tests too seriously!
+With EC2s, you can specify at creation the same availability zone as the s3 cache and run a comparison of normal buckets vs express in the best possible (in theory) latency conditions. Based on my manual runs on a throw-away EC2 (k=100), a normal bucket (GET a key) has average performance of 0.0162 s, median 0.0142 and 95th percentile 0.0274; a express bucket has average performance of 0.005 s, median 0.005 and 95th percentile 0.005, making it not just 3x faster in the average case, but significantly more reliable.
+
+Note: don't take these tests too seriously!
 
 ### Bonus: a lambda-based use-case
 
-If you know the [serverless framework](https://www.serverless.com/framework/) and have it avalaible on your machine, you can publish a lambda function that performs some (horribly repetive) tests to evaluate the real AWS-service-to-s3 latency, which is more representative of cloud workloads. Note that:
+If you know the [serverless framework](https://www.serverless.com/framework/) and have it avalaible on your machine, you can publish a lambda function that performs some (horribly repetive) tests to evaluate AWS-service-to-s3 latency. Note that:
 
 * on top of serverless, you will need Docker, as the `boto3` version inside Lamdbas is too old and does not support s3 express buckets yet;
 * after deployment, you need to make sure the lambda role created for the function can access the s3 resources backing up the cache. s3 express policies are [a drag toug](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-security-iam-identity-policies.html), so beware.
