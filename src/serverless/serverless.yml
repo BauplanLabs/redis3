@@ -1,0 +1,22 @@
+service: redis3-lambda-performance
+
+provider:
+  name: aws
+  timeout: 30
+  architecture: arm64
+  ecr:
+    images:
+      redis3test:
+        path: ../
+        platform: linux/arm64
+
+
+functions:
+  myredis3test:
+    image:
+      name: redis3test
+    events:
+      - http:
+          path: test
+          method: get
+
