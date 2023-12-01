@@ -12,19 +12,18 @@ def print_test_info(
     timing_list: list,
     target_percentile: int = 95
 ):
+    def percentile(input, q):
+        """
+        I don't want to import numpy just for this
+        """
+        data_sorted = sorted(input)
+        
+        return data_sorted[math.ceil(q / 100 * len(data_sorted))]
+
     print("Average time: {}".format(mean(timing_list)))
     print("Median time: {}".format(median(timing_list)))
     print("95th percentile time: {}".format(percentile(timing_list, target_percentile)))
     return
-
-
-def percentile(input, q):
-    """
-    I don't want to import numpy just for this
-    """
-    data_sorted = sorted(input)
-    
-    return data_sorted[math.ceil(q / 100 * len(data_sorted))]
 
 
 def run_normal_bucket_tests(
@@ -107,8 +106,7 @@ def run_functional_tests(
     **kwargs
 ):
     my_client = redis3Client(cache_name=cache_name, db=0, verbose=False, **kwargs)
-    
-    del my_client
+
     # end
     print("\nEnd of functional tests {}\n".format(datetime.now()))
     
@@ -129,6 +127,8 @@ def run_tests(
     run_normal_bucket_tests(test_keys, test_values, **kwargs)
     # test performance of the cache
     run_cache_tests(test_keys, test_values, cache_name, **kwargs)
+    # now do the same but with much bigger keys and values
+    
     
     print("\nFinished testing at {}. See you, s3ace cowboy".format(datetime.now()))
     return
@@ -140,4 +140,4 @@ if __name__ == "__main__":
     # make sure we have a cache name
     assert len(sys.argv) == 2, "Please provide a cache name"
     cache_name = sys.argv[1]
-    run_tests(cache_name, k=1000)
+    run_tests(cache_name, k=100)

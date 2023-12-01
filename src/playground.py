@@ -6,12 +6,19 @@ by performing some basic operations on the "cache".
 To cover edge cases and benchmarking, you can inspect and run run_tests.py
 instead.
 
+Note that this script assumes your interpreter can run:
+
+s3_client = boto3.client('s3')
+
+either through a local AWS credentials file or through ENVs etc. (you can also
+modify this script to pass credentials to boto3 using kwargs for redis3Client).
+
 """
 
 from redis3 import redis3Client
 from datetime import datetime
 from utils import measure_func
-
+import json
 
 @measure_func
 def set_key_with_timing(client):
@@ -61,6 +68,12 @@ def run_playground(
     # overwrite the key and get it back
     r = my_client.set('foo', 'bar2')
     assert my_client.get('foo') == 'bar2', "Expected 'bar2', got {}".format(r)
+    # store something more complex, as long as you can serialize it to a string
+    # e.g. dump it to a JSON string
+    my_obj = { 'k_{}'.format(i): 'v_{}'.format(i) for i in range(5) }
+    r = my_client.set('foo_dic', json.dumps(my_obj))
+    r = json.loads(my_client.get('foo_dic'))
+    assert r['k_0'] == 'v_0', "Expected 'v_0', got {}".format(r['k_0'])
     # get a key that doesn't exist
     r = my_client.get('baz')
     assert r is None, "Expected None, got {}".format(r)

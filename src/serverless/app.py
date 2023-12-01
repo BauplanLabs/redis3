@@ -30,9 +30,7 @@ from statistics import mean, median
 
 
 # default number of keys to try to set / get
-DEFAULT_K = 75
-
-
+DEFAULT_K = 50
 # check that the version of boto3 supports the s3 express feature
 print("Boto3 version: {}".format(boto3.__version__))
 
@@ -48,6 +46,28 @@ def wrap_response(body):
             "Content-Type": "application/json"
         }
     }
+
+
+def run_redis3_many_keys_tests(
+    cache_name: str,
+    key_list: list,
+    val_list: list
+):
+    my_client = redis3Client(cache_name=cache_name, db=0, verbose=False)
+    
+    set_times = []
+    get_times = []
+    # do it few times to get a sense of the performance
+    for _ in range(3):
+        s_set_time = time.time()
+        r = my_client.mset(key_list, val_list)
+        set_times.append(time.time() - s_set_time)
+        s_get_time = time.time()
+        r = my_client.mget(key_list)
+        get_times.append(time.time() - s_get_time)
+        assert r == val_list, "Expected {}, got {}".format(val_list, r)
+    
+    return get_times, set_times
 
 
 def run_redis3_tests(
@@ -144,7 +164,15 @@ def lambda_handler(event, context):
     data['get_times_s3'] = get_times
     data['get_time_mean_s3'] = mean(get_times)
     data['get_time_median_s3'] = median(get_times)
-    
+    # finally test the redis3 client with many keys at once
+    get_times, set_times = run_redis3_many_keys_tests(cache_name, key_list, val_list)
+    data['set_times_many'] = set_times
+    data['set_time_mean_many'] = mean(set_times)
+    data['set_time_median_many'] = median(set_times)
+    data['get_times_many'] = get_times
+    data['get_time_mean_many'] = mean(get_times)
+    data['get_time_median_many'] = median(get_times)
+      
     body = {
         "metadata": {
             "timeMs": int((time.time() - start) * 1000.0),
