@@ -165,18 +165,21 @@ class redis3Client():
         
         Ref: https://redis.io/commands/mset/
         """
+                
         results = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = []
-            for k, v in zip(keys, values):
-                futures.append(executor.submit(self.set, key=k, value=v))
-            for future in futures:
+            futures = {}
+            for ctr, (k, v) in enumerate(zip(keys, values)):
+                futures[executor.submit(self.set, key=k, value=v)] = ctr
+            for future in concurrent.futures.as_completed(futures):
                 try:
-                    results.append(future.result())
+                    results.append((future.result(), futures[future]))
                 except Exception as ex:
                     raise ex
                 
-        return results
+        results, _ = zip(*sorted(results, key=lambda x: x[1]))
+                
+        return list(results)
         
     def mget(self, keys: list):
         """
@@ -191,15 +194,15 @@ class redis3Client():
         """
         values = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = []
-            for k in keys:
-                futures.append(executor.submit(self.get, key=k))
-            for future in futures:
-            # note the usual concurrent.futures.as_completed will not work here
-            # as we need to preserve the order of the keys
+            futures = {}
+            for ctr, k in enumerate(keys):
+                futures[executor.submit(self.get, key=k)] = ctr
+            for future in concurrent.futures.as_completed(futures):
                 try:
-                    values.append(future.result())
+                    values.append((future.result(), futures[future]))
                 except Exception as ex:
                     raise ex
                 
-        return values
+        values, _ = zip(*sorted(values, key=lambda x: x[1]))
+                
+        return list(values)
