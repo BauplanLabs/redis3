@@ -8,7 +8,13 @@ AWS recently announced [s3 Express](https://aws.amazon.com/it/s3/storage-classes
 
 Even the pricing is geared towards small objects: "you pay $0.16/GB/month in the US East (N. Virginia) Region (...) and an additional per-GB fee for the portion of any request that exceeds 512 KB."
 
-One of the primary (even if far from the only) use cases for things like Redis is consistent performance for key-value queries: you set 'bar' for the key 'foo', and then you retrieve it by asking 'foo' later. While Redis (and other key-value stores) are indubitably faster than s3 (even in its new express version), they are incredibly more costly: a _cache.t4g.micro_ costs 11.52 / month (0.016 USD / hour) for 0.5 GB.
+One of the primary (even if far from the only) use cases for things like Redis is consistent performance for key-value queries: you set 'bar' for the key 'foo', and then you retrieve it by asking 'foo' later. While Redis (and other key-value stores) are indubitably faster than s3 (even in its new express version), they are incredibly more costly: these are some prices (in US East) as of Dec 2023.
+
+| Service | Monthly Cost ($) |
+| ------------- | ------------- |
+| S3 Express (1 GB) | 0.16 |
+| cache.t4g.micro (0.5 GB)  | 11.52 (0.016 / hour) |
+| cache.t4g.small (1.37 GB) | 23.04 (0.032 / hour) |
 
 In this small experiment we set out to investigate which type of performance / cost trade-off is now unlocked thanks to the new s3 Express option: since we mostly care about key-value queries for "small objects", can we build a redis-like client entirely backed by s3 Express?
 
@@ -50,28 +56,45 @@ python playground.py my-cache-name
 
 Sometimes we want a full-fledged NoSQL store (no shortage of that!), sometimes we just want to set some value somewhere, possibly namespaced in some way, and get it back at a later time. Object storage like s3 was never fast and reliable enough in first byte latency to be an actual contender, until the release of s3 Express, which, for key-value type of queries, proposes a novel price/latency trade-off compared to more traditional solutions (Redis, dynamo etc.).
 
-`redis3` is a 100 LOC (or whatever) class that puts together a redis-py interface to s3 Express, easy to be used as a slowish, but infinite and cheap cache (no worries about provisioning a larger instance, or evicting keys); `redis3` now implements GET and SET, namespaced by a database integer (Redis-like), plus a version of MGET and MSET "suited" to object storage - i.e. it cannot be an atomic operation, but it runs in parallel through a thread pool, allowing to SET / GET many values with one command relatively fast (from my local machine - a pretty decent Mac -, getting 25 keys with MGET takes 0.1286s, 50 takes 0.1362s and 100 takes 0.1960s).
+`redis3` is a 100 LOC (or whatever) class that puts together a redis-py interface to s3 Express, easy to be used as a slowish, but infinite and cheap cache (no worries about provisioning a larger instance, or evicting keys); `redis3` now implements GET and SET, namespaced by a database integer (Redis-like), plus few other commands, such as a version of MGET and MSET "suited" to object storage - i.e. it cannot be an atomic operation, but it runs in parallel through a thread pool, allowing to SET / GET many values with one command relatively fast (from my local machine - a pretty decent Mac in US East -, getting 25 keys with MGET takes 0.1286s, 50 takes 0.1362s and 100 takes 0.1960s). When instantiating the client (e.g. `redis3Client(cache_name='mytestcache', db=0)`) you can specify a `db` as a namespacing device, exactly as it happens in Redis (there is no limitation to `16` for the numbers of db of course).
 
-Note that redis (which, btw, runs single-threaded in-memory for a reason) can offer not only 316136913 more commands, but also atomicity guarantees (INCR, WATCH, etc.) that object storage cannot (s3 offers however [strong read-after-write consistency](https://aws.amazon.com/it/s3/consistency/): after a successful write of a new object, any subsequent read request receives the latest version of the object). On the other hand, a s3-backed cache can offer additional concurrent troughput at no additional effort, a truly "serverless experience" and a "thin client" which falls back on standard AWS libraries, inheriting automatically all security policies you can think of (e.g. since "db" in redis3 are just folder in an express bucket, access can controlled at that level by leveraging the usual IAM magic).
+| Redis Command | redis3 Command | Intended Semantics |
+| ------------- | ------------- | ------------- |
+| GET  | `get(key)` | 0.0162 |
+| SET  | `set(key, value)`  | 0.0162 |
+| MGET | `mget(keys)` | 0.0162 |
+| MSET | `mset(keys, values)`  | 0.0162 |
+| KEYS | `keys(starts_with)`  | 0.0162 |
+| DEL | `delete(key)`  |  0.0162 |
+
+Note that redis (which, btw, runs single-threaded in-memory for a reason) can offer not only 316136913 more commands, but also atomicity guarantees (INCR, WATCH, etc.) that object storage cannot (s3 offers however [strong read-after-write consistency](https://aws.amazon.com/it/s3/consistency/): after a successful write of a new object, any subsequent read - including listin keys - request receives the latest version of the object). On the other hand, a s3-backed cache can offer more concurrent troughput at no additional effort, a truly "serverless experience" and a "thin client" which falls back on standard AWS libraries, inheriting automatically all security policies you can think of (e.g. since "db" in redis3 are just folder in an express bucket, access can controlled at that level by leveraging the usual IAM magic).
 
 ## Running some tests
 
-Some more (horribly repetive) code to test the difference between s3 express and normal s3 (plus some tests to actually make sure the client behaves as it should) can be run here:
+Some more (horribly repetitive) code to test the difference between s3 express and normal s3 (plus some tests to actually make sure the client behaves as it should) can be run here:
 
 ```shell
 python run_tests.py my-cache-name
 ```
 
-With EC2s, you can specify at creation the same availability zone as the s3 cache and run a comparison of normal buckets vs express in the best possible (in theory) latency conditions. Based on my manual runs on a throw-away EC2 (k=100), a normal bucket (GET a key) has average performance of 0.0162 s, median 0.0142 and 95th percentile 0.0274; a express bucket has average performance of 0.005 s, median 0.005 and 95th percentile 0.005, making it not just 3x faster in the average case, but significantly more reliable.
+With EC2s, you can specify at creation the same availability zone as the s3 cache and run a comparison of normal buckets vs express in the best possible (in theory) latency conditions. My manual runs on a throw-away EC2 (k=100) gave the following results (in seconds):
+
+| Test | Standard Bucket (s) | Express Bucket (s) |
+| ------------- | ------------- | ------------- |
+| GET (avg) | 0.0162 | 0.005  |
+| GET (median) | 0.0142  | 0.005  |
+| GET (95th latency) | 0.0274  | 0.005  |
+
+TL;DR: an express bucket is not just 3x faster in the average case, but significantly more reliable in the tail.
 
 Note: don't take these tests too seriously!
 
 ### Bonus: a lambda-based use-case
 
-If you know the [serverless framework](https://www.serverless.com/framework/) and have it avalaible on your machine, you can publish a lambda function that performs some (horribly repetive) tests to evaluate AWS-service-to-s3 latency. Note that:
+If you know the [serverless framework](https://www.serverless.com/framework/) and have it avalaible on your machine, you can publish a lambda function that performs some (horribly repetitive) tests to evaluate AWS-lambda-to-s3 latency. Note that:
 
 * on top of serverless, you will need Docker, as the `boto3` version inside Lamdbas is too old and does not support s3 express buckets yet;
-* after deployment, you need to make sure the lambda role created for the function can access the s3 resources backing up the cache. s3 express policies are [a drag toug](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-security-iam-identity-policies.html), so beware.
+* after deployment, you need to make sure the lambda role created for the function can access the s3 resources backing up the cache. Note that s3 express policies are [a bit of a drag](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-security-iam-identity-policies.html), so beware.
 
 If you feel adventurous and ready to fight IAM roles, then do:
 
@@ -82,7 +105,7 @@ serverless deploy
 
 (if you don't you can just trust my numbers below!).
 
-At the end, you'll get and endpoint such as `https://xxx.execute-api.us-east-1.amazonaws.com/dev/test` that you can open in your browser to trigger the tests. One request will generate something like this response, i.e. a comparison of _k_ SETs and GETs in s3 express vs normal (plus a MSET and MGET concurrent version):
+At the end, you'll get and endpoint such as `https://xxx.execute-api.us-east-1.amazonaws.com/dev/test?k=50&cache=mytestcache` that you can open in your browser to trigger the tests (`k` and `cache` are optional - check `app.py` for the defaults). One request will generate something like this, i.e. a comparison of _k_ ops in s3 express vs normal:
 
 ```json
 {
@@ -90,24 +113,19 @@ At the end, you'll get and endpoint such as `https://xxx.execute-api.us-east-1.a
         "timeMs": 7373,
         "epochMs": 1701377819320,
         "eventId": "971ca40d-8f50-4c27-a816-76bb7df292c4",
-        "inputK": 75
+        "inputK": 50
     },
     "data": {
-        "set_times": [],
         "set_time_mean": 0.011164916356404623,
         "set_time_median": 0.009434223175048828,
-        "get_times": [],
         "get_time_mean": 0.006322011947631836,
         "get_time_median": 0.006218910217285156,
-        "set_times_s3": [],
         "set_time_mean_s3": 0.026339941024780274,
         "set_time_median_s3": 0.024151086807250977,
-        "get_times_s3": [],
         "get_time_mean_s3": 0.019532273610432943,
         "get_time_median_s3": 0.016076326370239258,
         "set_time_mean_many": 0.406483252843221,
         "set_time_median_many": 0.3329179286956787,
-        "get_times_many": [],
         "get_time_mean_many": 0.31602056821187335,
         "get_time_median_many": 0.3195207118988037
     }
