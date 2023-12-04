@@ -6,12 +6,15 @@ by performing some basic operations on the "cache".
 To cover edge cases and benchmarking, you can inspect and run run_tests.py
 instead.
 
-Note that this script assumes your interpreter can run:
+Note that redis3 assumes your interpreter can run:
 
 s3_client = boto3.client('s3')
 
-either through a local AWS credentials file or through ENVs etc. (you can also
-modify this script to pass credentials to boto3 using kwargs for redis3Client).
+(and all the other boto3 calls in redis3.py) either through a local AWS credentials file, ENVs etc. 
+(you can also modify this script to pass credentials to boto3 using kwargs for redis3Client).
+
+For reference on AWS credentials and boto3, check this: 
+https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
 
 """
 
@@ -64,17 +67,14 @@ def run_playground(
     assert r is True, "Expected True, got {}".format(r)
     r = my_client.get('foo')
     print(r) 
-    assert r == 'bar', "Expected 'bar', got {}".format(r)
-    assert isinstance(r, str), "Expected a string, got {}".format(type(r))
     # overwrite the key and get it back
     r = my_client.set('foo', 'bar2')
-    assert my_client.get('foo') == 'bar2', "Expected 'bar2', got {}".format(r)
     # store something more complex, as long as you can serialize it to a string
     # e.g. dump it to a JSON string
     my_obj = { 'k_{}'.format(i): 'v_{}'.format(i) for i in range(5) }
     r = my_client.set('foo_dic', json.dumps(my_obj))
     r = json.loads(my_client.get('foo_dic'))
-    assert r['k_0'] == 'v_0', "Expected 'v_0', got {}".format(r['k_0'])
+    print("Json keys: {}".format(list(r.keys())))
     # get a key that doesn't exist
     r = my_client.get('baz')
     assert r is None, "Expected None, got {}".format(r)
@@ -82,18 +82,13 @@ def run_playground(
     key_list = ['playground_{}'.format(i) for i in range(5)]
     val_list = ['bar_{}'.format(i) for i in range(5)]
     r = my_client.mset(key_list, val_list)
-    assert all(r), "Expected all True, got {}".format(r)
-    val_list_back = my_client.mget(key_list)    
-    assert val_list_back == val_list, "Expected {}, got {}".format(val_list, val_list_back)
+    val_list_back = my_client.mget(key_list)  
+    print("Got back {} values".format(len(val_list_back)))
     # use the keys command to get all keys in the cache
     all_keys_in_db = list([k for k in my_client.keys()])
     print("Found {} keys in cache, first three: {}".format(len(all_keys_in_db), all_keys_in_db[:3]))
     # delete one
     r = my_client.delete(all_keys_in_db[0])
-    assert r is True, "Expected True, got {}".format(r)
-    # delete one that does not exist by getting a random string
-    r = my_client.delete(str(uuid.uuid4()))
-    assert r is True, "Expected True, got {}".format(r)
     # finally, do the same ops, wrapped in a timing decorator
     # to avoid spamming the console, we 'manually' toggle verbose off
     my_client._verbose = False

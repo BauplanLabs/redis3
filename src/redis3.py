@@ -35,7 +35,7 @@ class redis3Client():
             availability_zone,
             cache_name
             )
-        self._db = db
+        self.db = db
         self._cache_name = cache_name
         self._availability_zone = availability_zone
         self._verbose = verbose
@@ -70,6 +70,24 @@ class redis3Client():
         return None
     
     @property
+    def db(self):
+        """
+        Return the db for the cache (i.e. this is a prefix in the bucket)
+        """
+        return self._db
+    
+    @db.setter
+    def db(self, value):
+        """
+        Set the db for the cache (i.e. this is a prefix in the bucket)
+        """
+        try:
+            self._db = int(value)
+        except ValueError:
+            print('db must be an integer or something that can be casted as such, got {}'.format(value))
+            raise ValueError
+    
+    @property
     def bucket_name(self):
         """
         Return the name of the bucket used to back the cache
@@ -98,7 +116,7 @@ class redis3Client():
         Make sure that the key is prefixed with the db number as 
         a natural namespacing of the keys
         """
-        return '{}/{}'.format(self._db, key)
+        return '{}/{}'.format(self.db, key)
     
     def set(self, key: str, value: str):
         """
@@ -224,7 +242,7 @@ class redis3Client():
         return self._get_matching_s3_keys(
             self.bucket_name, 
             # for express, only prefixes that end in a delimiter ( /) are supported.
-            '{}/'.format(self._db), 
+            '{}/'.format(self.db), 
             starts_with
             )
 
