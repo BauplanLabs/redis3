@@ -165,18 +165,21 @@ class redis3Client():
         
         Ref: https://redis.io/commands/mset/
         """
+                
         results = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = []
-            for k, v in zip(keys, values):
-                futures.append(executor.submit(self.set, key=k, value=v))
-            for future in futures:
+            futures = {}
+            for ctr, (k, v) in enumerate(zip(keys, values)):
+                futures[executor.submit(self.set, key=k, value=v)] = ctr
+            for future in concurrent.futures.as_completed(futures):
                 try:
-                    results.append(future.result())
+                    results.append((future.result(), futures[future]))
                 except Exception as ex:
                     raise ex
                 
-        return results
+        results, _ = zip(*sorted(results, key=lambda x: x[1]))
+                
+        return list(results)
         
     def mget(self, keys: list):
         """
@@ -191,15 +194,75 @@ class redis3Client():
         """
         values = []
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = []
-            for k in keys:
-                futures.append(executor.submit(self.get, key=k))
-            for future in futures:
-            # note the usual concurrent.futures.as_completed will not work here
-            # as we need to preserve the order of the keys
+            futures = {}
+            for ctr, k in enumerate(keys):
+                futures[executor.submit(self.get, key=k)] = ctr
+            for future in concurrent.futures.as_completed(futures):
                 try:
-                    values.append(future.result())
+                    values.append((future.result(), futures[future]))
                 except Exception as ex:
                     raise ex
                 
-        return values
+        values, _ = zip(*sorted(values, key=lambda x: x[1]))
+                
+        return list(values)
+    
+    def keys(self, starts_with=None):
+        """
+        Return all the keys matching the specified pattern in the current db, modeled
+        after the Redis "KEYS pattern" command (usual caveat on atomicity 
+        applies).
+        
+        This is a generator function, so you can use it like:
+        
+        for key in my_client.keys():
+            print(key)
+        
+        Ref: https://redis.io/commands/keys/
+        """
+        
+        return self._get_matching_s3_keys(
+            self.bucket_name, 
+            # for express, only prefixes that end in a delimiter ( /) are supported.
+            '{}/'.format(self._db), 
+            starts_with
+            )
+
+    def _get_matching_s3_keys(self, bucket, prefix, pattern):
+        """
+        Code gently inspired by: https://alexwlchan.net/2017/listing-s3-keys/
+        """
+        kwargs = {'Bucket': bucket}
+        if prefix:
+            kwargs['Prefix'] = prefix
+        while True:
+            resp = self._s3_client.list_objects_v2(**kwargs)
+            for obj in resp['Contents']:
+                key = obj['Key']
+                # we want to make sure keys start with the prefix (i.e. the db number)
+                assert key.startswith(prefix)
+                # if no pattern is specified or the key starts with the pattern
+                if pattern is None or key.startswith(pattern):
+                    yield key[len(prefix):]
+
+            # The S3 API is paginated, so we pass the continuation token into the next response
+            try:
+                kwargs['ContinuationToken'] = resp['NextContinuationToken']
+            except KeyError:
+                break
+            
+    def delete(self, key: str):
+        """
+        Delete a key in the current database (a non-existent key gets ignored
+        as the AWS boto client won't raise any error). We use "delete" to avoid confliucts
+        with the Python keyword "del".
+
+        Ref: https://redis.io/commands/del/
+        """
+        _key = self._get_object_key_from_key_name(key)
+        r = self._s3_client.delete_object(
+                Bucket=self.bucket_name,
+                Key=_key,
+                )
+            
+        return True

@@ -18,6 +18,7 @@ modify this script to pass credentials to boto3 using kwargs for redis3Client).
 from redis3 import redis3Client
 from datetime import datetime
 from utils import measure_func
+import uuid
 import json
 
 @measure_func
@@ -84,7 +85,15 @@ def run_playground(
     assert all(r), "Expected all True, got {}".format(r)
     val_list_back = my_client.mget(key_list)    
     assert val_list_back == val_list, "Expected {}, got {}".format(val_list, val_list_back)
-    
+    # use the keys command to get all keys in the cache
+    all_keys_in_db = list([k for k in my_client.keys()])
+    print("Found {} keys in cache, first three: {}".format(len(all_keys_in_db), all_keys_in_db[:3]))
+    # delete one
+    r = my_client.delete(all_keys_in_db[0])
+    assert r is True, "Expected True, got {}".format(r)
+    # delete one that does not exist by getting a random string
+    r = my_client.delete(str(uuid.uuid4()))
+    assert r is True, "Expected True, got {}".format(r)
     # finally, do the same ops, wrapped in a timing decorator
     # to avoid spamming the console, we 'manually' toggle verbose off
     my_client._verbose = False
