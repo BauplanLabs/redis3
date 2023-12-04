@@ -206,3 +206,63 @@ class redis3Client():
         values, _ = zip(*sorted(values, key=lambda x: x[1]))
                 
         return list(values)
+    
+    def keys(self, starts_with=None):
+        """
+        Return all the keys matching the specified pattern in the current db, modeled
+        after the Redis "KEYS pattern" command (usual caveat on atomicity 
+        applies).
+        
+        This is a generator function, so you can use it like:
+        
+        for key in my_client.keys():
+            print(key)
+        
+        Ref: https://redis.io/commands/keys/
+        """
+        
+        return self._get_matching_s3_keys(
+            self.bucket_name, 
+            # for express, only prefixes that end in a delimiter ( /) are supported.
+            '{}/'.format(self._db), 
+            starts_with
+            )
+
+    def _get_matching_s3_keys(self, bucket, prefix, pattern):
+        """
+        Code gently inspired by: https://alexwlchan.net/2017/listing-s3-keys/
+        """
+        kwargs = {'Bucket': bucket}
+        if prefix:
+            kwargs['Prefix'] = prefix
+        while True:
+            resp = self._s3_client.list_objects_v2(**kwargs)
+            for obj in resp['Contents']:
+                key = obj['Key']
+                # we want to make sure keys start with the prefix (i.e. the db number)
+                assert key.startswith(prefix)
+                # if no pattern is specified or the key starts with the pattern
+                if pattern is None or key.startswith(pattern):
+                    yield key[len(prefix):]
+
+            # The S3 API is paginated, so we pass the continuation token into the next response
+            try:
+                kwargs['ContinuationToken'] = resp['NextContinuationToken']
+            except KeyError:
+                break
+            
+    def delete(self, key: str):
+        """
+        Delete a key in the current database (a non-existent key gets ignored
+        as the AWS boto client won't raise any error). We use "delete" to avoid confliucts
+        with the Python keyword "del".
+
+        Ref: https://redis.io/commands/del/
+        """
+        _key = self._get_object_key_from_key_name(key)
+        r = self._s3_client.delete_object(
+                Bucket=self.bucket_name,
+                Key=_key,
+                )
+            
+        return True
