@@ -136,9 +136,9 @@ In this particular example, with _k=50_, setting a key with s3 Express is ~10ms,
 
 ## TO-DOs, misc. notes and all that jazz
 
-* Since the only real dependency is boto3 and AWS access, make it easier to configure the client wrt AWS would be nice: right now, I've mostly running either in a DEV environment with semi-god IAM access, or in a carefully crafted IAM-role attached to the lambda;
-* if this is useful, move to poetry and auto-deploy to PyPyi would make it easy to just start using all around repos;
-* if lambda-based latency benchmarks are useulf, built in the serverless.yml the proper AWS permission so that the deployment becomes seamless.
+* Since the only real dependency is boto3 and AWS access, we should make it easier to configure the client wrt AWS: right now, I've mostly running the code either in a DEV environment with semi-god access, or in a carefully crafted IAM-role attached to the lambda;
+* we should move the tests to pytest, the packaging to poetry and then enable auto-deploy to PyPi;
+* if lambda-based benchmarks are useful, we should bake in in the serverless.yml the proper AWS permissions so that the deployment becomes seamless.
 
 Everything is left as an exercise to the reader.
 
