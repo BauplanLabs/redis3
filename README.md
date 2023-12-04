@@ -81,9 +81,9 @@ With EC2s, you can specify at creation the same availability zone as the s3 cach
 
 | Test | Standard Bucket (s) | Express Bucket (s) |
 | ------------- | ------------- | ------------- |
-| GET (avg) | 0.0162 | 0.005  |
-| GET (median) | 0.0142  | 0.005  |
-| GET (95th latency) | 0.0274  | 0.005  |
+| GET (avg) | 0.016 | 0.005  |
+| GET (median) | 0.014  | 0.005  |
+| GET (95th latency) | 0.027  | 0.005  |
 
 TL;DR: an express bucket is not just 3x faster in the average case, but significantly more reliable in the tail.
 
