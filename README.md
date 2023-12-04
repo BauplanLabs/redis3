@@ -56,16 +56,16 @@ python playground.py my-cache-name
 
 Sometimes we want a full-fledged NoSQL store (no shortage of that!), sometimes we just want to set some value somewhere, possibly namespaced in some way, and get it back at a later time. Object storage like s3 was never fast and reliable enough in first byte latency to be an actual contender, until the release of s3 Express, which, for key-value type of queries, proposes a novel price/latency trade-off compared to more traditional solutions (Redis, dynamo etc.).
 
-`redis3` is a 100 LOC (or whatever) class that puts together a redis-py interface to s3 Express, easy to be used as a slowish, but infinite and cheap cache (no worries about provisioning a larger instance, or evicting keys); `redis3` now implements GET and SET, namespaced by a database integer (Redis-like), plus few other commands, such as a version of MGET and MSET "suited" to object storage - i.e. it cannot be an atomic operation, but it runs in parallel through a thread pool, allowing to SET / GET many values with one command relatively fast (from my local machine - a pretty decent Mac in US East -, getting 25 keys with MGET takes 0.1286s, 50 takes 0.1362s and 100 takes 0.1960s). When instantiating the client (e.g. `redis3Client(cache_name='mytestcache', db=0)`) you can specify a `db` as a namespacing device, exactly as it happens in Redis (there is no limitation to `16` for the numbers of db of course).
+`redis3` is a 100 LOC (or whatever) class that puts together a redis-py interface to s3 Express, easy to be used as a slowish, but infinite and cheap cache (no worries about provisioning a larger instance, or evicting keys); `redis3` now implements GET and SET, namespaced by a database integer (Redis-like), plus few other commands, such as a version of MGET and MSET "suited" to object storage - i.e. it cannot be an atomic operation, but it runs in parallel through a thread pool, allowing to SET / GET many values with one command relatively fast (from my local machine - a pretty decent Mac in US East -, getting 25 keys with MGET takes 0.1286s, 50 takes 0.1362s and 100 takes 0.1960s). When instantiating the client (e.g. `redis3Client(cache_name='mytestcache', db=0)`) you can specify a `db` as a namespacing device, exactly as it happens in Redis (there is no limitation to `16` for the number of db of course).
 
 | Redis Command | redis3 Command | Intended Semantics |
 | ------------- | ------------- | ------------- |
-| GET  | `get(key)` | 0.0162 |
-| SET  | `set(key, value)`  | 0.0162 |
-| MGET | `mget(keys)` | 0.0162 |
-| MSET | `mset(keys, values)`  | 0.0162 |
-| KEYS | `keys(starts_with)`  | 0.0162 |
-| DEL | `delete(key)`  |  0.0162 |
+| GET  | `get(key)` | get the value from a string key |
+| SET  | `set(key, value)`  | set a string value for a key |
+| MGET | `mget(keys)` | get multiple keys in parallel |
+| MSET | `mset(keys, values)`  | set multiple values for keys in parallel |
+| KEYS | `keys(starts_with)`  | list all keys in the current db |
+| DEL | `delete(key)`  |  delete the key (no error is thrown if key does not exist) |
 
 Note that redis (which, btw, runs single-threaded in-memory for a reason) can offer not only 316136913 more commands, but also atomicity guarantees (INCR, WATCH, etc.) that object storage cannot (s3 offers however [strong read-after-write consistency](https://aws.amazon.com/it/s3/consistency/): after a successful write of a new object, any subsequent read - including listin keys - request receives the latest version of the object). On the other hand, a s3-backed cache can offer more concurrent troughput at no additional effort, a truly "serverless experience" and a "thin client" which falls back on standard AWS libraries, inheriting automatically all security policies you can think of (e.g. since "db" in redis3 are just folder in an express bucket, access can controlled at that level by leveraging the usual IAM magic).
 
