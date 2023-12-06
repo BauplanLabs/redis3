@@ -7,16 +7,21 @@ sense of potential performance gains.
 Note that for this to work you need to make the AWS lambda role (created by serverless)
 aware of the bucket that is underlying the redis3 cache.
 
-S3 express policies are a drag tough, so beware:
+S3 express policies are a drag, so beware:
 
 https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-express-security-iam-identity-policies.html
 
 Note that to make it work, I had to actually copy the ARN for the bucket from the s3 console.
 
-Finally the AWS lambda role shuold also have access to buckets with the pattern used by normal
+Finally the AWS lambda role should also have access to buckets with the pattern used by normal
 s3 client to do the comparison, e.g.:
 
 bucket_name = "redis3-test-{}".format(uuid.uuid4())
+
+Note 2: we included a redis client in the lambda function to test the performance of 
+actual Redis on Redis Lab in us-east-1: this is done for the purpose of the comparison
+in the Medium blog post, so treat the code as a throw-away example (you will need to provide your own
+credentials for Redis and spin up your own free Redis instance on Redis Labs).
 
 """
 
@@ -26,6 +31,7 @@ import uuid
 import boto3
 import json
 from redis3 import redis3Client
+import redis
 from statistics import mean, median
 
 
@@ -47,6 +53,31 @@ def wrap_response(body):
         }
     }
 
+
+def run_redis_tests(
+    key_list: list,
+    val_list: list
+):
+    my_client = redis.Redis(
+        host='redis-xxx.cloud.redislabs.com', 
+        password='mypwd',
+        port=14665, 
+        db=0)
+    
+    set_times = []
+    for k, v in zip(key_list, val_list):
+        s_set_time = time.time()
+        r = my_client.set(k, v)
+        set_times.append(time.time() - s_set_time)
+        
+    get_times = []
+    for k, v in zip(key_list, val_list):
+        s_get_time = time.time()
+        r = my_client.get(k)
+        get_times.append(time.time() - s_get_time) 
+    
+    return get_times, set_times
+    
 
 def run_redis3_many_keys_tests(
     cache_name: str,
@@ -164,6 +195,15 @@ def lambda_handler(event, context):
     data['get_times_s3'] = get_times
     data['get_time_mean_s3'] = mean(get_times)
     data['get_time_median_s3'] = median(get_times)
+    # run some basic ops in s3
+    get_times, set_times = run_redis_tests(key_list, val_list)
+    # add some stats to the data object we return
+    data['set_times_redis'] = set_times
+    data['set_time_mean_redis'] = mean(set_times)
+    data['set_time_median_redis'] = median(set_times)
+    data['get_times_redis'] = get_times
+    data['get_time_mean_redis'] = mean(get_times)
+    data['get_time_median_redis'] = median(get_times)
     # finally test the redis3 client with many keys at once
     get_times, set_times = run_redis3_many_keys_tests(cache_name, key_list, val_list)
     data['set_times_many'] = set_times

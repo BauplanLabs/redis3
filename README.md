@@ -56,36 +56,38 @@ python playground.py my-cache-name
 
 Sometimes we want a full-fledged NoSQL store (no shortage of that!), sometimes we just want to set some value somewhere, possibly namespaced in some way, and get it back at a later time. Object storage like s3 was never fast and reliable enough in first byte latency to be an actual contender, until the release of s3 Express, which, for key-value type of queries, proposes a novel price/latency trade-off compared to more traditional solutions (Redis, dynamo etc.).
 
-`redis3` is a 100 LOC (or whatever) class that puts together a redis-py interface to s3 Express, easy to be used as a slowish, but infinite and cheap cache (no worries about provisioning a larger instance, or evicting keys); `redis3` now implements GET and SET, plus few other commands, such as a version of MGET "suited" to object storage - i.e. it cannot be an atomic operation, but it runs in parallel through a thread pool, allowing to GET many values with one command relatively fast (from my local machine - a decent Mac in US East -, getting 25 keys takes 0.1286s, 50 takes 0.1362s and 100 takes 0.1960s). When instantiating the client (e.g. `redis3Client(cache_name='mytestcache', db=0)`) you can specify a `db` as a namespacing device, exactly as it happens in Redis (there is no limitation to `16` as a total number of databases of course).
+`redis3` is a 100 LOC (or whatever) class that puts together a redis-py interface to s3 Express, easy to be used as a slowish, but infinite and cheap cache (no worries about provisioning a larger instance, or evicting keys); `redis3` now implements GET and SET, namespaced by a database integer (Redis-like), plus few other commands, such as a version of MGET and MSET "suited" to object storage - i.e. it cannot be an atomic operation, but it runs in parallel through a thread pool, allowing to SET / GET many values with one command relatively fast (from my local machine - a pretty decent Mac in US East -, getting 25 keys with MGET takes 0.1286s, 50 takes 0.1362s and 100 takes 0.1960s). When instantiating the client (e.g. `redis3Client(cache_name='mytestcache', db=0)`) you can specify a `db` as a namespacing device, exactly as it happens in Redis (there is no limitation to `16` for the number of db of course).
 
 | Redis Command | redis3 Command | Intended Semantics |
 | ------------- | ------------- | ------------- |
 | GET  | `get(key)` | get the value from a string key |
 | SET  | `set(key, value)`  | set a string value for a key |
 | MGET | `mget(keys)` | get multiple keys in parallel |
-| MSET | `mset(keys, values)`  | set multiple values in parallel |
-| KEYS | `keys(starts_with)`  | list all keys in the current db, possibly only if they start with a prefix |
+| MSET | `mset(keys, values)`  | set multiple values for keys in parallel |
+| KEYS | `keys(starts_with)`  | list all keys in the current db |
 | DEL | `delete(key)`  |  delete the key (no error is thrown if key does not exist) |
 
-Note that redis (which, btw, runs single-threaded in-memory for a reason) can offer not only 316136913 more commands, but also atomicity guarantees (INCR, WATCH, etc.) that object storage cannot (s3 offers however [strong read-after-write consistency](https://aws.amazon.com/it/s3/consistency/): after a successful write, any subsequent read - including listing keys - request receives the latest version of the object). On the other hand, a s3-backed cache can offer concurrent troughput at no additional effort, a truly "serverless experience" and a "thin client" which falls back on standard AWS libraries, inheriting automatically all security policies you can think of (e.g. since a "db" in redis3 is just folder in an express bucket, access can be controlled at many levels by leveraging the usual IAM magic).
+Note that redis (which, btw, runs single-threaded in-memory for a reason) can offer not only 316136913 more commands, but also atomicity guarantees (INCR, WATCH, etc.) that object storage cannot (s3 offers however [strong read-after-write consistency](https://aws.amazon.com/it/s3/consistency/): after a successful write of a new object, any subsequent read - including listin keys - request receives the latest version of the object). On the other hand, a s3-backed cache can offer more concurrent troughput at no additional effort, a truly "serverless experience" and a "thin client" which falls back on standard AWS libraries, inheriting automatically all security policies you can think of (e.g. since "db" in redis3 are just folder in an express bucket, access can controlled at that level by leveraging the usual IAM magic).
 
 ## Running some tests
 
-Some more (horribly repetitive) code to test the difference between s3 express and normal s3 (plus some tests to make sure the client behaves as it should) can be run here:
+Some more (horribly repetitive) code to test the difference between s3 express and normal s3 (plus some tests to actually make sure the client behaves as it should) can be run here:
 
 ```shell
 python run_tests.py my-cache-name
 ```
 
-With EC2s, you can specify to be in the same availability zone as the s3 cache and run a comparison of normal buckets vs express in the best possible latency conditions. My manual runs on a throw-away EC2 (k=100) gave the following results (in seconds):
+With EC2s, you can specify at creation the same availability zone as the s3 cache and run a comparison of normal buckets vs express in the best possible (in theory) latency conditions (vs a free [Redis](https://redis.com/) instance in us-east-1 as baseline comparison). My manual runs on a throw-away EC2 (k=100) gave the following results (in seconds):
 
-| Test | Standard Bucket (s) | Express Bucket (s) |
-| ------------- | ------------- | ------------- |
-| GET (avg) | 0.016 | 0.005  |
-| GET (median) | 0.014  | 0.005  |
-| GET (95th latency) | 0.027  | 0.005  |
+| Test | Standard Bucket (s) | Express Bucket (s) | Redis Labs |
+| ------------- | ------------- | ------------- | ------------- |
+| GET (avg) | 0.016 | 0.005  | 0.001  |
+| GET (median) | 0.014  | 0.005  | 0.0009  |
+| GET (95th latency) | 0.027  | 0.005  | 0.002  | 
 
-TL;DR: an express bucket is not just 3x faster in the average case, but significantly more reliable in the tail. Note: don't take these tests too seriously!
+TL;DR: an express bucket is not just 3x faster in the average case, but significantly more reliable in the tail. Redis is still much faster than both, but (remember) it is also much more expensive.
+
+Note: don't take these tests too seriously!
 
 ### Bonus: a lambda-based use-case
 
@@ -103,7 +105,7 @@ serverless deploy
 
 (if you don't you can just trust my numbers below!).
 
-At the end, you'll get and endpoint such as `https://xxx.execute-api.us-east-1.amazonaws.com/dev/test?k=50&cache=mytestcache` that you can hit to trigger the tests (`k` and `cache` are optional - check `app.py` for the defaults). One request will generate something like this:
+At the end, you'll get and endpoint such as `https://xxx.execute-api.us-east-1.amazonaws.com/dev/test?k=50&cache=mytestcache` that you can open in your browser to trigger the tests (`k` and `cache` are optional - check `app.py` for the defaults). One request will generate something like this, i.e. a comparison of _k_ ops in s3 express vs normal vs Redis Labs:
 
 ```json
 {
@@ -122,6 +124,8 @@ At the end, you'll get and endpoint such as `https://xxx.execute-api.us-east-1.a
         "set_time_median_s3": 0.024151086807250977,
         "get_time_mean_s3": 0.019532273610432943,
         "get_time_median_s3": 0.016076326370239258,
+        "set_time_mean_redis": 0.0018777799606323241,
+        "set_time_median_redis": 0.000904083251953125,
         "set_time_mean_many": 0.406483252843221,
         "set_time_median_many": 0.3329179286956787,
         "get_time_mean_many": 0.31602056821187335,
@@ -130,13 +134,13 @@ At the end, you'll get and endpoint such as `https://xxx.execute-api.us-east-1.a
 }
 ```
 
-In this example, with _k=50_, setting a key with s3 express is ~10ms, and ~6 to get it back, vs ~25 and 18 from standard s3. Setting 50 keys at once takes ~400ms, while reading them back ~300. Not bad!
+In this particular example, with _k=50_, setting a key with s3 Express is ~10ms, and 6 to get it back, vs ~25 and 18 from standard s3. Setting 50 keys at once with multi-threading takes ~400ms, while reading them back ~300. Not bad!
 
 ## TO-DOs, misc. notes and all that jazz
 
-* Since the only real dependency is boto3 and AWS access, we should make it easier to configure the client wrt AWS: right now, I've mostly running the code either in a DEV environment with semi-god access, or in a carefully crafted IAM-role attached to the lambda;
-* we should move the tests to pytest, the packaging to poetry and then enable auto-deploy to PyPi;
-* if lambda-based benchmarks are useful, we should bake in in the serverless.yml the proper AWS permissions so that the deployment becomes seamless.
+* Since the only real dependency is boto3 and AWS access, make it easier to configure the client wrt AWS would be nice: right now, I've mostly running either in a DEV environment with semi-god IAM access, or in a carefully crafted IAM-role attached to the lambda;
+* if this is useful, move to poetry and auto-deploy to PyPyi would make it easy to just start using all around repos;
+* if lambda-based latency benchmarks are useulf, built in the serverless.yml the proper AWS permission so that the deployment becomes seamless.
 
 Everything is left as an exercise to the reader.
 
