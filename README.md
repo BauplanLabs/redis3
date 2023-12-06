@@ -77,15 +77,15 @@ Some more (horribly repetitive) code to test the difference between s3 express a
 python run_tests.py my-cache-name
 ```
 
-With EC2s, you can specify at creation the same availability zone as the s3 cache and run a comparison of normal buckets vs express in the best possible (in theory) latency conditions. My manual runs on a throw-away EC2 (k=100) gave the following results (in seconds):
+With EC2s, you can specify at creation the same availability zone as the s3 cache and run a comparison of normal buckets vs express in the best possible (in theory) latency conditions (vs a free [Redis](https://redis.com/) instance in us-east-1 as baseline comparison). My manual runs on a throw-away EC2 (k=100) gave the following results (in seconds):
 
-| Test | Standard Bucket (s) | Express Bucket (s) |
-| ------------- | ------------- | ------------- |
-| GET (avg) | 0.016 | 0.005  |
-| GET (median) | 0.014  | 0.005  |
-| GET (95th latency) | 0.027  | 0.005  |
+| Test | Standard Bucket (s) | Express Bucket (s) | Redis Labs |
+| ------------- | ------------- | ------------- | ------------- |
+| GET (avg) | 0.016 | 0.005  | 0.001  |
+| GET (median) | 0.014  | 0.005  | 0.0009  |
+| GET (95th latency) | 0.027  | 0.005  | 0.002  | 
 
-TL;DR: an express bucket is not just 3x faster in the average case, but significantly more reliable in the tail.
+TL;DR: an express bucket is not just 3x faster in the average case, but significantly more reliable in the tail. Redis is still much faster than both, but (remember) it is also much more expensive.
 
 Note: don't take these tests too seriously!
 
