@@ -6,13 +6,12 @@ import concurrent.futures
 
 class redis3Client():
     
-    BUCKET_PREFIX = 'redis3'
-    
     def __init__(
         self, 
         cache_name: str, 
         db: int = 0, 
         availability_zone: str = 'use1-az5',
+        bucket_prefix: str = 'redis3',
         verbose: bool = False,
         **kwargs
         ):
@@ -22,12 +21,10 @@ class redis3Client():
         to boto3 at init phase using kwargs when instantiating the class.
         
         You can also override the default bucket prefix by passing a different
-        bucket_prefix as kwarg.
+        bucket_prefix.
         """
         init_start_time = time()
-        # override the default bucket prefix if needed
-        if 'bucket_prefix' in kwargs and kwargs['bucket_prefix'] is not None:
-            self.BUCKET_PREFIX = kwargs['bucket_prefix']
+        self.bucket_prefix = bucket_prefix
         
         # setup basic class attributes and objects
         self._s3_client = boto3.client('s3', **kwargs)
@@ -109,7 +106,7 @@ class redis3Client():
         
         https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-bucket-naming-rules.html
         """
-        return '{}-{}--{}--x-s3'.format(self.BUCKET_PREFIX, cache_name, availability_zone)
+        return '{}-{}--{}--x-s3'.format(self.bucket_prefix, cache_name, availability_zone)
     
     def _get_object_key_from_key_name(self, key: str):
         """
