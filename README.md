@@ -25,15 +25,14 @@ If you have [AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/c
 ```shell
  python3 -m venv venv
  source venv/bin/activate
- pip install -r requirements.txt
- cd src
+ pip install .
  python
 ```
 
 In the Python REPL, you can now do (compare to [redis-py](https://github.com/redis/redis-py)):
 
 ```shell
->>> from redis3 import redis3Client
+>>> from redis3.redis3 import redis3Client
 >>> r = redis3Client(cache_name='mytestcache', db=0)
 >>> r.set('foo', 'bar')
 True
@@ -49,6 +48,7 @@ Note that:
 If you want to see more ops, you can run `playground.py` with your own `my-cache-name` as argument:
 
 ```shell
+cd src
 python playground.py my-cache-name
 ```
 
@@ -74,6 +74,7 @@ Note that redis (which, btw, runs single-threaded in-memory for a reason) can of
 Some more (horribly repetitive) code to test the difference between s3 express and normal s3 (plus some tests to actually make sure the client behaves as it should) can be run here:
 
 ```shell
+cd src
 python run_tests.py my-cache-name
 ```
 
@@ -103,7 +104,7 @@ cd serverless
 serverless deploy
 ```
 
-(if you don't you can just trust my numbers below!).
+(if you don't, you can just trust my numbers below!).
 
 At the end, you'll get and endpoint such as `https://xxx.execute-api.us-east-1.amazonaws.com/dev/test?k=50&cache=mytestcache` that you can open in your browser to trigger the tests (`k` and `cache` are optional - check `app.py` for the defaults). One request will generate something like this, i.e. a comparison of _k_ ops in s3 express vs normal vs Redis Labs:
 
@@ -140,7 +141,7 @@ In this particular example, with _k=50_, setting a key with s3 Express is ~10ms,
 
 * Since the only real dependency is boto3 and AWS access, make it easier to configure the client wrt AWS would be nice: right now, I've mostly running either in a DEV environment with semi-god IAM access, or in a carefully crafted IAM-role attached to the lambda;
 * if this is useful, move to poetry and auto-deploy to PyPyi would make it easy to just start using all around repos;
-* if lambda-based latency benchmarks are useulf, built in the serverless.yml the proper AWS permission so that the deployment becomes seamless.
+* if lambda-based latency benchmarks are useful, built in the `serverless.yml` the proper AWS permission so that the deployment becomes seamless (now the entire serverless part is really manual, ad hoc and redundant).
 
 Everything is left as an exercise to the reader.
 

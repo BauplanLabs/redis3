@@ -18,11 +18,11 @@ https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
 
 """
 
-from redis3 import redis3Client
+from redis3.redis3 import redis3Client
 from datetime import datetime
 from utils import measure_func
-import uuid
 import json
+
 
 @measure_func
 def set_key_with_timing(client):

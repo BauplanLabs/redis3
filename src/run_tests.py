@@ -11,7 +11,7 @@ from time import time
 from statistics import median, mean
 from tqdm import tqdm
 from datetime import datetime
-from redis3 import redis3Client
+from redis3.redis3 import redis3Client
 import math
 import json
 import uuid
